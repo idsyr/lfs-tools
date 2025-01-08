@@ -44,7 +44,7 @@ mount -v -t ext4 /dev/sdb3 $LFS
 
 
 * Packages and Patches
-#+INCLUDE:: "load_pkgs.sh" src shell
+#+INCLUDE: "load_sources.sh" src shell
 
 
 * Final Preparations
@@ -73,7 +73,7 @@ mount -v -t ext4 /dev/sdb3 $LFS
 
 * Cross Compiling Temporary Tools
 ** M4
-#+INCLUDE: "install_temptool_m4.sh" src shell
+#+setupfile: "install_temptool_m4.sh" src shell
 ** Ncurses
 #+INCLUDE: "install_temptool_ncurses.sh" src shell
 ** Bash
@@ -583,7 +583,7 @@ rm -fv /usr/lib/libz.a
 #+end_src
 
 ** bzip
-#+INCLUDE: "install_final_bzip.sh" src shell 
+#+INCLUDE: "install_final_bzip2.sh" src shell 
 #+begin_src bash
 cd $LFS/sources
 LFS_TARGET=bzip
@@ -1704,7 +1704,7 @@ cp -R --no-preserve=mode python-3.12.5-docs-html/* \
 
 
 ** flit_core
-#+INCLUDE: "install_final_flit_core.sh" src shell 
+#+INCLUDE: "install_final_flit-core.sh" src shell 
 #+begin_src bash
 cd $LFS/sources
 LFS_TARGET=flit_core
@@ -2130,7 +2130,7 @@ cd ..
 
 
 ** MarkupSafe
-#+INCLUDE: "install_final_markup-safe.sh" src shell 
+#+INCLUDE: "install_final_markupsafe.sh" src shell 
 #+begin_src bash
 cd $LFS/sources
 LFS_TARGET=MarkupSafe
@@ -2144,7 +2144,7 @@ pip3 install --no-index --no-user --find-links dist Markupsafe
 
 
 ** jinja
-#+INCLUDE: "install_final_jinja.sh" src shell 
+#+INCLUDE: "install_final_jinja2.sh" src shell 
 #+begin_src bash
 cd $LFS/sources
 LFS_TARGET=jinja
