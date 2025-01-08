@@ -5,7 +5,7 @@
 
 
 * Preparing the Host System
-** Creating a New Partition
+** Creating a New Partition 
 #+begin_src bash
 fdisk /dev/sdb
     g w
@@ -17,7 +17,7 @@ fdisk /dev/sdb
 
 
 
-** Creating a File System on the Partition
+** Creating a File System on the Partition 
 #+begin_src bash
 mkfs.fat -F32 /dev/sdb1
 mkswap /dev/sdb2
@@ -43,739 +43,69 @@ mount -v -t ext4 /dev/sdb3 $LFS
 
 
 
-
-
-
-
-
 * Packages and Patches
-** Introduction
-#+begin_src bash
-mkdir -v $LFS/sources
-chmod -v a+wt $LFS/sources     # only the owner of a file can delete the file within a sticky directory.
-chown root:root $LFS/sources/* # otherwise files will be left owned by an unnamed UID in the final LFS system
-#+end_src
-
-** All Packages + Needed patches
-#+begin_src bash
-wget <All Packages>
-wget <Needed Patches>
-# wget -i text_file_with_urls.txt
-# wget --input-file=wget-list-sysv --continue --directory-prefix=$LFS/sources
-#+end_src
-
-
-
-
-
-
-
+#+INCLUDE:: "load_pkgs.sh" src shell
 
 
 * Final Preparations
 ** Creating a Limited Directory Layout in the LFS Filesystem
-#+begin_src bash
-mkdir -pv $LFS/{etc,var} $LFS/usr/{bin,lib,sbin} # creating dirs
-for i in bin lib sbin; do
-    ln -sv usr/$i $LFS/$i # symbolic links in $LFS on dirs in usr/
-done
-
-case $(uname -m) in
-    x86_64) mkdir -pv $LFS/lib64 ;; # if 64 -> +lib64
-esac
-
-mkdir -pv $LFS/tools # cross-comiler
-#+end_src
-
-
-
+#+INCLUDE: "create_directory_layout.sh" src shell
 ** Adding the LFS User
-#+begin_src bash
-groupadd lfs
-useradd -s /bin/bash -g lfs -m -k /dev/null lfs
-#+end_src
-- -s /bin/bash - this makes bash the default for user lfs
-- -g lfs - this creates a home directory for lfs
-- -m - this creates a home directory for lfs
-- -k /dev/null - this parametr prevents possible copting of files from skeleton directory (the defualt is /etc/skel) by chenging input location to the special null device
-- lfs - this is the name of the new user
-
-
-#+begin_src bash
-passwd lfs # for switch to lfs from non-root user
-
-# Grant lfs full access to all the directories under $LFS by making lfs the owner:
-chown -v lfs $LFS/{usr{,/*},lib,var,etc,bin,sbin,tools}
-case $(uname -m) in
-    x86_64) chown -v lfs $LFS/lib64 ;;
-esac
-
-su - lfs # Start the shell as a login shell with an environment similar to a real login
-#+end_src
-
-
-
-
+#+INCLUDE: "add_lfs_user.sh" src shell
 ** Setting Up the Environment
 - while logged as _lfs_
-- The exec env -i.../bin/bash command in the .bash_profile file replaces the running shell with a new one with a completely empty environment, except for the HOME, TERM, and PS1 variables. This ensures that no unwanted and potentially hazardous environment variables from the host system leak into the build environment
-#+beign_src bash
-cat > ~/.bash_profile << "EOF"
-exec env -i HOME=$HOME TERM=$TERM PS1='\u:\w\$ ' /bin/bash
-EOF
-#+end_src
-
-
-#+begin_src bash
-cat > ~/.bashrc << "EOF"
-set +h 
-umask 022
-LFS=/mnt/lfs
-LC_ALL=POSIX
-LFS_TGT=$(uname -m)-lfs-linux-gnu
-PATH=/usr/bin
-if [ ! -L /bin ]; then PATH=/bin:$PATH; fi
-PATH=$LFS/tools/bin:$PATH
-CONFIG_SITE=$LFS/usr/share/config.site
-export LFS LC_ALL LFS_TGT PATH CONFIG_SITE
-EOF
-#+end_src
-- set +h - turns off bash's hash function
-- umask 022 - new files with 644 mode
-- LFS=/mnt/lfs - $LFS
-- LC_ALL=POSIX - controls the localization of certain programs
-- LFS_TGT=$(uname -m)-lfs-linux-gnu - for cross compiler
-- PATH=/usr/bin - std PATH variable
-- if [ ! -L /bin ]; then PATH=/bin:$PATH; fi - if /bin is not a symbolic link, it must be added to the path variable
-- PATH=$LFS/tools/bin:$PATH - by putting ahead of the std path, the cross-compiler is picked up by the shell immediately after its installlation
-- CONFIG_SITE=$LFS/usr/share/config.site - prevent potential contamination from the host
-- export - visible within any sub-shells
-
-#+begin_src bash
-[ ! -e /etc/bash.bashrc ] || mv -v /etc/bash.bashrc /etc/bash.bashrc.NOUSE
-#+end_src
-- disable instantiation of /etc/bash.bashrc to the initialization of bash 
-
-#+begin_src bash
-cat >> ~/.bashrc << "EOF"
-export MAKEFLAGS=-j$(nproc)
-EOF
-#+end_src
-
-
-
-
-
-
-
-
+#+INCLUDE: "setting_up_environment.sh" src shell
 
 
 * Compiling a Cross-Toolchain
 ** Binutils
 - linker, assembler, other tools for handling object files
-#+begin_src bash
-LFS_TARGET=binutils
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-mkdir build
-cd build
-
-../configure \
-# install in tools dir
---prefix=$LFS/tools \
-# look the target system libs in $LFS
---with-sysroot=$LFS \
-# adjust binutil's build system for building cross linker
---target=$LFS_TGT \
-# disable internationalization as i18n is not needed for temp tools
---disable-nls \
-# disable profiler
---enable-gprofng=no \
-# prevent the build from stopping on warnings
---disable-werror \
-# runpath instead of rpath
---enable-new-dtags \
-# only one hash table for shared libs
---enable-default-hash-style=gnu
-
-make
-make install
-
-cd ..
-cd ..
-#+end_src
-
+#+INCLUDE: "install_cross_binutils.sh" src shell
 ** GCC
-*** mpfr
-#+begin_src bash
-tar -xf mpfr*tar*
-mv mpfr*/ mpfr/
-#+end_src
-*** gmp
-#+begin_src bash
-tar -xf gmp*tar*
-mv gmp*/ gmp/
-#+end_src
-*** mpc
-#+begin_src bash
-tar -xf mpc*tar*
-mv mpc*/ mpc/
-#+end_src
-*** GCC
-#+begin_src bash
-LFS_TARGET=gcc
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-
-# set default directory name for 64-bit libs to "lib"
-case $(uname -m) in
-    x86_64)
-        sed -e '/m64=/s/lib64/lib/' \
-            -i.orig gcc/config/i386/t-linux64
-    ;;
-esac
-
-mkdir build
-cd build
-
-../configure \
---target=$LFS_TGT \
---prefix=$LFS/tools \
---with-glibc-version=2.40 \
---with-sysroot=$LFS \
---with-newlib \
---without-headers \
---enable-default-pie \
---enable-default-ssp \
---disable-nls \
---disable-shared \
---disable-multilib \
---disable-threads \
---disable-libatomic \
---disable-libgomp \
---disable-libquadmath \
---disable-libssp \
---disable-libvtv \
---disable-libstdcxx \
---enable-languages=c,c++
-
-make 
-make install
-
-cd ..
-cat gcc/limitx.h gcc/glimits.h gcc/limity.h > \
-`dirname $($LFS_TGT-gcc -print-libgcc-file-name)`/include/limits.h
-
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_cross_gcc.sh" src shell
 ** Linux API Headers
-#+begin_src bash
-LFS_TARGET=linux
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-
-make mrproper
-
-make headers
-find usr/include -type f ! -name '*.h' -delete
-cp -rv usr/include $LFS/usr
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_cross_linux_headers.sh" src shell
 ** Glibc
-#+begin_src bash
-LFS_TARGET=glibc
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-
-case $(uname -m) in
-    i?86)
-        ln -sfv ld-linux.so.2 $LFS/lib/ld-lsb.so.3
-    ;;
-    x86_64) 
-        ln -sfv ../lib/ld-linux-x86-64.so.2 $LFS/lib64
-        ln -sfv ../lib/ld-linux-x86-64.so.2 $LFS/lib64/ld-lsb-x86-64.so.3
-    ;;
-esac
-
-mkdir build
-cd build
-
-echo "rootsbindir=/usr/sbin" > configparms
-
-../configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(../scripts/config.guess) \
---enable-kernel=4.19 \
---with-headers=$LFS/usr/include \
---disable-nscd \
-libc_cv_slibdir=/usr/lib
-
-make
-make DESTDIR=$LFS install
-
-sed '/RTLDLIST=/s@/usr@@g' -i $LFS/usr/bin/ldd
-
-cd ..
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_cross_glibc.sh" src shell
 ** libstd++
-#+begin_src bash
-LFS_TARGET=gcc
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-mkdir build
-cd build
-
-../configure \
---prefix=$LFS/tools \
---with-sysroot=$LFS \
---target=$LFS_TGT \
---disable-nls \
---enable-gprofng=no \
---disable-werror \
---enable-new-dtags \
---enable-default-hash-style=gnu
-
-make
-make DESTDIR=$LFS isntall
-rm -v $LFS/usr/lib/lib{stdc++{,exp,fs},supc++}.la
-
-cd ..
-cd ..
-#+end_src
-
-
+#+INCLUDE: "install_cross_libstd++.sh" src shell
 
 
 * Cross Compiling Temporary Tools
 ** M4
-#+begin_src bash
-LFS_TARGET=m4
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(build-aux/config.guess)
-
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
+#+INCLUDE: "install_temptool_m4.sh" src shell
 ** Ncurses
-#+begin_src bash
-LFS_TARGET=ncurses
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-
-mkdir build
-pushd build
-    ../configure
-    make -C include
-    make -C progs tic
-popd
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(./config.guess) \
---mandir=/usr/share/man \
---with-manpage-format=normal \
---with-shared \
---without-normal \
---with-cxx-shared \
---without-debug \
---without-ada \
---disable-stripping
-
-make
-make DESTDIR=$LFS TIC_PATH=$(pwd)/build/progs/tic install
-ln -sv libncursesw.so $LFS/usr/lib/libncurses.so
-sed -e 's/^#if.*XOPEN.*$/#if 1/' \
-    -i $LFS/usr/include/curses.h
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_ncurses.sh" src shell
 ** Bash
-#+begin_src bash
-LFS_TARGET=bash
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---build=$(sh support/config.guess) \
---host=$LFS_TGT \
---without-bash-malloc \
-bash_cv_strtold_broken=no
-
-make
-make DESTDIR=$LFS install
-ln -sv bash $LFS/bin/sh
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_bash.sh" src shell
 ** Coreutils
-#+begin_src bash
-LFS_TARGET=coreutils
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(build-aux/config.guess) \
---enable-install-program=hostname \
---enable-no-install-program=kill,uptime
-
-make
-make DESTDIR=$LFS install
-
-mv -v $LFS/usr/bin/chroot $LFS/usr/sbin
-mkdir -pv $LFS/usr/share/man/man8
-mv -v $LFS/usr/share/man/man1/chroot.1 $LFS/usr/share/man/man8/chroot.8
-sed -i 's/"1"/"8"/' $LFS/usr/share/man/man8/chroot.8
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_coreutils.sh" src shell
 ** Diffutils
-#+begin_src bash
-LFS_TARGET=diffutils
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(./build-aux/config.guess)
-
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_diffutils.sh" src shell
 ** file
-#+begin_src bash
-LFS_TARGET=file
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-mkdir build
-pushd build
-    ../configure \
-    --disable-bzlib \
-    --disable-libseccomp \
-    --disable-xzlib \
-    --disable-zlib
-    make
-popd
-
-./configure --prefix=/usr --host=$LFS_TGT --build=$(./config.guess)
-
-make FILE_COMPILE=$(pwd)/build/src/file
-make DESTDIR=$LFS install
-rm -v $LFS/usr/lib/libmagic.la
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_file.sh" src shell
 ** findutils
-#+begin_src bash
-LFS_TARGET=findutils
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---localstatedir=/var/lib/locate \
---host=$LFS_TGT \
---build=$(build-aux/config.guess)
-
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_findutils.sh" src shell
 ** gawk
-#+begin_src bash
-LFS_TARGET=gawk
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-sed -i 's/extras//' Makefile.in
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(build-aux/config.guess)
-
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
+#+INCLUDE: "install_temptool_gawk.sh" src shell 
 ** grep
-#+begin_src bash
-LFS_TARGET=grep
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(./build-aux/config.guess)
-
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
+#+INCLUDE: "install_temptool_grep.sh" src shell 
 ** gzip
-#+begin_src bash
-LFS_TARGET=gzip
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure --prefix=/usr --host=$LFS_TGT
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
+#+INCLUDE: "install_temptool_gzip.sh" src shell 
 ** make
-#+begin_src bash
-LFS_TARGET=make
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---without-guile \
---host=$LFS_TGT \
---build=$(build-aux/config.guess)
-
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_make.sh" src shell 
 ** patch
-#+begin_src bash
-LFS_TARGET=patch
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(build-aux/config.guess)
-
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_patch.sh" src shell 
 ** sed
-#+begin_src shell
-LFS_TARGET=sed
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(./build-aux/config.guess)
-
-make 
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_sed.sh" src shell 
 ** tar
-#+begin_src shell
-LFS_TARGET=tar
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure --prefix=/usr \
---host=$LFS_TGT \
---build=$(build-aux/config.guess)
-
-make
-make DESTDIR=$LFS install
-
-cd ..
-#+end_src
-
-
+#+INCLUDE: "install_temptool_tar.sh" src shell 
 ** xz
-#+begin_src shell
-LFS_TARGET=xz
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(build-aux/config.guess) \
---disable-static \
---docdir=/usr/share/doc/xz-5.6.2
-
-make
-make DESTDIR=$LFS install
-rm -v $LFS/usr/lib/liblzma.la
-
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_xz.sh" src shell 
 ** binutils
-#+begin_src shell
-LFS_TARGET=binutils
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-sed '6009s/$add_dir//' -i ltmain.sh
-
-mkdir build
-cd build
-
-../configure \
---prefix=/usr \
---build=$(../config.guess) \
---host=$LFS_TGT \
---disable-nls \
---enable-shared \
---enable-gprofng=no \
---disable-werror \
---enable-64-bit-bfd \
---enable-new-dtags \
---enable-default-hash-style=gnu
-
-make
-make DESTDIR=$LFS install
-rm -v $LFS/usr/lib/lib{bfd,ctf,ctf-nobfd,opcodes,sframe}.{a,la}
-
-cd ..
-cd ..
-#+end_src
-
-
-
+#+INCLUDE: "install_temptool_binutils.sh" src shell 
 ** gcc
-#+begin_src shell
-LFS_TARGET=mpfr
-tar -xf $LFS_TARGET*tar*
-mv $LFS_TARGET*/ $LFS_TARGET/
-
-LFS_TARGET=gmp
-tar -xf $LFS_TARGET*tar*
-mv $LFS_TARGET*/ $LFS_TARGET/
-
-LFS_TARGET=mpc
-tar -xf $LFS_TARGET*tar*
-mv $LFS_TARGET*/ $LFS_TARGET/
-
-LFS_TARGET=gcc
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
-
-case $(uname -m) in
-    x86_64)
-        sed -e '/m64=/s/lib64/lib/' \
-            -i.orig gcc/config/i386/t-linux64
-    ;;
-esac
-
-sed '/thread_header =/s/@.*@/gthr-posix.h/' \
-    -i libgcc/Makefile.in libstdc++-v3/include/Makefile.in
-
-mkdir build
-cd build
-
-../configure \
---build=$(../config.guess) \
---host=$LFS_TGT \
---target=$LFS_TGT \
-LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc \
---prefix=/usr \
---with-build-sysroot=$LFS \
---enable-default-pie \
---enable-default-ssp \
---disable-nls \
---disable-multilib \
---disable-libatomic \
---disable-libgomp \
---disable-libquadmath \
---disable-libsanitizer \
---disable-libssp \
---disable-libvtv \
---enable-languages=c,c++ \
-
-make
-make DESTDIR=$LFS install
-ln -sv gcc $LFS/usr/bin/cc
-
-cd ..
-cd ..
-#+end_src
-
+#+INCLUDE: "install_temptool_gcc.sh" src shell 
 <===============================================================================
 
 * Entering Chroot and Building Additional Temporary Tools
@@ -929,7 +259,9 @@ chmod -v 600 /var/log/btmp
 
 
 ** gettext
+#+INCLUDE: "install_addnltool_gettext.sh" src shell 
 #+begin_src shell
+cd $LFS/sources
 LFS_TARGET=gettext
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -938,12 +270,13 @@ cd $LFS_TARGET*/
 make
 cp -v gettext-tools/src/{msgfmt,msgmerge,xgettext} /usr/bin
 
-cd ..
 #+end_src
 
 
 ** bison
+#+INCLUDE: "install_addnltool_bison.sh" src shell 
 #+begin_src shell
+cd $LFS/sources
 LFS_TARGET=bison
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -955,12 +288,14 @@ cd $LFS_TARGET*/
 make
 make install
 
-cd ..
 #+end_src
 
 
 ** perl
+#+INCLUDE: "install_addnltool_perl.sh" src shell 
 #+begin_src shell
+#+INCLUDE: "install_addnltool_perl.sh" src shell 
+cd $LFS/sources
 LFS_TARGET=perl
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -979,12 +314,14 @@ sh Configure -des \
 make
 make install
 
-cd ..
 #+end_src
 
 
 ** python
+#+INCLUDE: "install_addnltool_python.sh" src shell 
 #+begin_src shell
+#+INCLUDE: "install_addnltool_python.sh" src shell 
+cd $LFS/sources
 LFS_TARGET=python
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -997,13 +334,14 @@ cd $LFS_TARGET*/
 make
 make install
 
-cd ..
 #+end_src
 
 
 
 ** Texinfo
+#+INCLUDE: "install_addnltool_texinfo.sh" src shell 
 #+begin_src shell
+cd $LFS/sources
 LFS_TARGET=texinfo
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1012,13 +350,14 @@ cd $LFS_TARGET*/
 make
 make install
 
-cd ..
 #+end_src
 
 
 
 ** util-linux
+#+INCLUDE: "install_addnltool_util-linux.sh" src shell 
 #+begin_src shell
+cd $LFS/sources
 LFS_TARGET=util-linux
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1044,7 +383,6 @@ ADJTIME_PATH=/var/lib/hwclock/adjtime \
 make
 make install
 
-cd ..
 #+end_src
 
 
@@ -1084,7 +422,9 @@ su - lfs
 
 * Installing Basic System Software
 ** man-pages
+#+INCLUDE: "install_final_man-pages.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=man-pages
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1092,24 +432,26 @@ cd $LFS_TARGET*/
 rm -v man3/crypt*
 make prefix=/usr install
 
-cd ..
 #+end_src
 
 
 ** iana-etc
+#+INCLUDE: "install_final_iana-etc.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=iana-etc
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
 
 cp services protocols /etc
-cd ..
 #+end_src
 
 
 ** glibc
+#+INCLUDE: "install_final_glibc.sh" src shell 
 #+begin_src bash
-LFS_TARGET=iana-etc
+cd $LFS/sources
+LFS_TARGET=glibc
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
 
@@ -1170,7 +512,6 @@ localedef -i zh_CN -f GB18030 zh_CN.GB18030
 localedef -i zh_HK -f BIG5-HKSCS zh_HK.BIG5-HKSCS
 localedef -i zh_TW -f UTF-8 zh_TW.UTF-8
 
-cd ..
 #+end_src
 
 
@@ -1226,7 +567,9 @@ mkdir -pv /etc/ld.so.conf.d
 
 
 ** zlib
+#+INCLUDE: "install_final_zlib.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=zlib
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1237,16 +580,17 @@ make check
 make install
 rm -fv /usr/lib/libz.a
 
-cd ..
 #+end_src
 
 ** bzip
+#+INCLUDE: "install_final_bzip.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=bzip
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
 
-patch -Np1 -i ../bzip2-1.0.8-install_docs-1.patch
+patch -Np1 -i ../bzip2-1.0.8-install_final_docs-1.patch
 sed -i 's@\(ln -s -f \)$(PREFIX)/bin/@\1@' Makefile
 sed -i "s@(PREFIX)/man@(PREFIX)/share/man@g" Makefile
 
@@ -1265,11 +609,12 @@ done
 
 rm -fv /usr/lib/libbz2.a
 
-cd ..
 #+end_src
 
 ** xz
+#+INCLUDE: "install_final_xz.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=xz
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1283,11 +628,12 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 ** lz4
+#+INCLUDE: "install_final_lz4.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=lz4
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1296,12 +642,13 @@ make BUILD_STATIC=no PREFIX=/usr
 make -j1 check
 make BUILD_STATIC=no PREFIX=/usr install
 
-cd ..
 #+end_src
 
 
 ** zstd
+#+INCLUDE: "install_final_zstd.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=zstd
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1311,12 +658,13 @@ make check
 make prefix=/usr install
 rm -v /usr/lib/libzstd.a
 
-cd ..
 #+end_src
 
 
 ** file
+#+INCLUDE: "install_final_file.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=file
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1326,12 +674,13 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 ** readline
+#+INCLUDE: "install_final_readline.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=readline
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1351,12 +700,13 @@ make SHLIB_LIBS="-lncursesw"
 make SHLIB_LIBS="-lncursesw" install
 install -v -m644 doc/*.{ps,pdf,html,dvi} /usr/share/doc/readline-8.2.13
 
-cd ..
 #+end_src
 
 
 ** m4
+#+INCLUDE: "install_final_m4.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=m4
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1366,14 +716,15 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 
 
 ** bc
+#+INCLUDE: "install_final_bc.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=bc
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1383,13 +734,14 @@ make
 make test
 make install
 
-cd ..
 #+end_src
 
 
 
 ** flex
+#+INCLUDE: "install_final_flex.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=flex
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1406,11 +758,12 @@ make install
 ln -sv flex /usr/bin/lex
 ln -sv flex.1 /usr/share/man/man1/lex.1
 
-cd ..
 #+end_src
 
 ** tcl
+#+INCLUDE: "install_final_tcl.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=tcl*src
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1449,11 +802,12 @@ mv /usr/share/man/man3/{Thread,Tcl_Thread}.3
 # mkdir -v -p /usr/share/doc/tcl-8.6.14
 # cp -v -r ./html/* /usr/share/doc/tcl-8.6.14
 
-cd ..
 #+end_src
 
 ** expect
+#+INCLUDE: "install_final_expect.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=expect
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1474,11 +828,12 @@ make install
 # FIXME
 ln -svf expect5.45.4/libexpect5.45.4.so /usr/lib
 
-cd ..
 #+end_src
 
 ** dejaGNU
+#+INCLUDE: "install_final_dejagnu.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=dejagnu
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1497,11 +852,12 @@ install -v -dm755 /usr/share/doc/dejagnu-1.6.3
 install -v -m644 doc/dejagnu.{html,txt} /usr/share/doc/dejagnu-1.6.3
 
 cd ..
-cd ..
 #+end_src
 
 ** pkgconf
+#+INCLUDE: "install_final_pkgconf.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=pkgconf
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1517,11 +873,12 @@ make install
 ln -sv pkgconf /usr/bin/pkg-config
 ln -sv pkgconf.1 /usr/share/man/man1/pkg-config.1
 
-cd ..
 #+end_src
 
 ** binutils
+#+INCLUDE: "install_final_binutils.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=binutils
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1555,7 +912,9 @@ cd ../../
 #+end_src
 
 ** gmp
+#+INCLUDE: "install_final_gmp.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=gmp
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1577,11 +936,12 @@ make install
 make install-html
 
 
-cd ..
 #+end_src
 
 ** mpfr
+#+INCLUDE: "install_final_mpfr.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=mpfr
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1601,11 +961,12 @@ make check
 make install
 make install-html
 
-cd ..
 #+end_src
 
 ** mpc
+#+INCLUDE: "install_final_mpc.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=mpc
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1623,11 +984,12 @@ make check
 make install
 make install-html
 
-cd ..
 #+end_src
 
 ** attr
+#+INCLUDE: "install_final_attr.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=attr
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1642,11 +1004,12 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 ** acl
+#+INCLUDE: "install_final_acl.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=acl
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1659,11 +1022,12 @@ cd $LFS_TARGET*/
 make
 make install
 
-cd ..
 #+end_src
 
 ** libcap
+#+INCLUDE: "install_final_libcap.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=libcap
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1674,11 +1038,12 @@ make prefix=/usr lib=lib
 make test
 make prefix=/usr lib=lib install
 
-cd ..
 #+end_src
 
 ** libxcrypt
+#+INCLUDE: "install_final_libxcrypt.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=libxcrypt
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1694,11 +1059,12 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 ** shadow
+#+INCLUDE: "install_final_shadow.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=shadow
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1729,12 +1095,13 @@ useradd -D --gid 999
 
 passwd root 
 
-cd ..
 #+end_src
 
 
 ** gcc
+#+INCLUDE: "install_final_gcc.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=gcc
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1814,7 +1181,9 @@ cd ../../
 #+end_src
 
 ** ncurses
+#+INCLUDE: "install_final_ncurses.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=ncurses
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1846,11 +1215,12 @@ done
 ln -sfv libncursesw.so /usr/lib/libcurses.so
 cp -v -R doc -T /usr/share/doc/ncurses-6.5
 
-cd ..
 #+end_src
 
 ** sed
+#+INCLUDE: "install_final_sed.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=sed
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1866,11 +1236,12 @@ make install
 install -d -m755 /usr/share/doc/sed-4.9
 install -m644 doc/sed.html /usr/share/doc/sed-4.9
 
-cd ..
 #+end_src
 
 ** psmisc
+#+INCLUDE: "install_final_psmisc.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=psmisc
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1880,11 +1251,12 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 ** gettext
+#+INCLUDE: "install_final_gettext.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=gettext
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1899,11 +1271,12 @@ make check
 make install
 chmod -v 0755 /usr/preloadable_libntl.so
 
-cd ..
 #+end_src
 
 ** bison
+#+INCLUDE: "install_final_bison.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=bison
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1913,11 +1286,12 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 ** grep
+#+INCLUDE: "install_final_grep.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=grep
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1928,11 +1302,12 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 ** bash
+#+INCLUDE: "install_final_bash.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=bash
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1959,11 +1334,12 @@ make install
 
 exec /usr/bin/bash --login
 
-cd ..
 #+end_src
 
 ** libtool
+#+INCLUDE: "install_final_libtool.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=libtool
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1974,11 +1350,12 @@ make -k check
 make install
 rm -fv /usr/lib/libltdl.a
 
-cd ..
 #+end_src
 
 ** gdbm
+#+INCLUDE: "install_final_gdbm.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=gdbm
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -1992,13 +1369,14 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 
 ** gperf
+#+INCLUDE: "install_final_gperf.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=gperf
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2008,13 +1386,14 @@ make
 make -j1 check
 make install
 
-cd ..
 #+end_src
 
 
 
 ** expat
+#+INCLUDE: "install_final_expat.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=expat
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2031,13 +1410,14 @@ make install
 #FIXME
 install -v -m644 doc/*.{html,css} /usr/share/doc/expat-2.6.2
 
-cd ..
 #+end_src
 
 
 
 ** inetutils
+#+INCLUDE: "install_final_inetutils.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=inetutils
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2061,13 +1441,14 @@ make check
 make install
 mk -v /usr/{,s}bin/ifconfig
 
-cd ..
 #+end_src
 
 
 
 ** less
+#+INCLUDE: "install_final_less.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=less
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2077,13 +1458,14 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 
 ** perl
+#+INCLUDE: "install_final_perl.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=perl
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2112,13 +1494,14 @@ TEST_JOBS=$(nproc) make test_harness
 make install
 unset BUILD_ZLIB BUILD_BZIP2
 
-cd ..
 #+end_src
 
 
 
 ** xml::parser
+#+INCLUDE: "install_final_xml-parser.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=XML-Parser
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2128,13 +1511,14 @@ make
 make test
 make install
 
-cd ..
 #+end_src
 
 
 
 ** intltool
+#+INCLUDE: "install_final_intltool.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=intltool
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2146,13 +1530,14 @@ make check
 make install
 install -v -Dm644 doc/I18N-HOWTO /usr/share/doc/intltool-0.51.0/I18N-HOWTO
 
-cd ..
 #+end_src
 
 
 
 ** autoconf
+#+INCLUDE: "install_final_autoconf.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=autoconf
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2162,13 +1547,14 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 
 ** automake
+#+INCLUDE: "install_final_automake.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=automake
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2179,13 +1565,14 @@ make
 make -j$(($(nproc)>4?$(nproc):4)) check
 make install
 
-cd ..
 #+end_src
 
 
 
 ** openssl
+#+INCLUDE: "install_final_openssl.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=openssl
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2200,7 +1587,7 @@ zlib-dynamic
 make
 HARNESS_JOBS=$(nproc) make test
 
-sed -i '/INSTALL_LIBS/s/libcrypto.a libssl.a//' Makefile
+sed -i '/INSTALL_FINAL_LIBS/s/libcrypto.a libssl.a//' Makefile
 make MANSUFFIX=ssl install
 
 mv -v /usr/share/doc/openssl /usr/share/doc/openssl-3.3.1
@@ -2208,13 +1595,14 @@ mv -v /usr/share/doc/openssl /usr/share/doc/openssl-3.3.1
 #FIXME
 cp -vfr doc/* /usr/share/doc/openssl-3.3.1
 
-cd ..
 #+end_src
 
 
 
 ** kmod
+#+INCLUDE: "install_final_kmod.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=kmod
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2235,13 +1623,14 @@ for target in depmod insmod modinfo modprobe rmmod; do
     rm -fv /usr/bin/$target
 done
 
-cd ..
 #+end_src
 
 
 
 ** libelf 
+#+INCLUDE: "install_final_libelf.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=elfutils
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2265,7 +1654,9 @@ cd ../../
 
 
 ** libffi 
+#+INCLUDE: "install_final_libffi.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=libffi
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2279,13 +1670,14 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 
 ** python
+#+INCLUDE: "install_final_python.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=python
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2307,13 +1699,14 @@ tar --no-same-owner \
 cp -R --no-preserve=mode python-3.12.5-docs-html/* \
     /usr/share/doc/python-3.12.5/html
 
-cd ..
 #+end_src
 
 
 
 ** flit_core
+#+INCLUDE: "install_final_flit_core.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=flit_core
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2321,13 +1714,14 @@ cd $LFS_TARGET*/
 pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
 pip3 install --no-index --find-links=dist wheel
 
-cd ..
 #+end_src
 
 
 
 ** setuptools
+#+INCLUDE: "install_final_setuptools.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=setuptools
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2335,12 +1729,13 @@ cd $LFS_TARGET*/
 pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
 pip3 install --no-index --find-links dist setuptools
 
-cd ..
 #+end_src
 
 
 ** ninja
+#+INCLUDE: "install_final_ninja.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=ninja
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2360,13 +1755,14 @@ install -vm755 ninja /usr/bin/
 install -vDm644 misc/bash-completion /usr/share/bash-completion/completions/ninja
 install -vDm644 misc/zsh-completion /usr/share/zsh/site-functions/_ninja
 
-cd ..
 #+end_src
 
 
 
 ** meson
+#+INCLUDE: "install_final_meson.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=meson
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2377,13 +1773,14 @@ pip3 install --no-index --find-links dist meson
 install -vDm644 data/shell-completions/bash/meson /usr/share/bash-completion/completions/meson
 install -vDm644 data/shell-completions/zsh/_meson /usr/share/zsh/site-functions/_meson
 
-cd ..
 #+end_src
 
 
 
 ** coreutils
+#+INCLUDE: "install_final_coreutils.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=coreutils
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2410,13 +1807,14 @@ mv -v /usr/bin/chroot /usr/sbin
 mv -v /usr/share/man/man1/chroot.1 /usr/share/man/man8/chroot.8
 sed -i 's/"1"/"8"/' /usr/share/man/man8/chroot.8
 
-cd ..
 #+end_src
 
 
 
 ** check
+#+INCLUDE: "install_final_check.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=check
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2426,12 +1824,13 @@ make
 make check
 make docdir=/usr/share/doc/check-0.15.2 install
 
-cd ..
 #+end_src
 
 
 ** diffutils
+#+INCLUDE: "install_final_diffutils.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=diffutils
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2441,12 +1840,13 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 ** gawk
+#+INCLUDE: "install_final_gawk.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=gawk
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2467,12 +1867,13 @@ ln -sv gawk.1 /usr/share/man/man1/awk.1
 mkdir -pv /usr/share/doc/gawk-5.3.0
 cp -v doc/{awkforai.txt,*.{eps,pdf,jpg}} /usr/share/doc/gawk-5.3.0
 
-cd ..
 #+end_src
 
 
 ** findutils
+#+INCLUDE: "install_final_findutils.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=findutils
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2485,12 +1886,13 @@ su tester -c "PATH=$PATH make check"
 
 make install
 
-cd ..
 #+end_src
 
 
 ** groff
+#+INCLUDE: "install_final_groff.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=groff
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2500,12 +1902,13 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 ** grub
+#+INCLUDE: "install_final_grub.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=grub
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2524,12 +1927,13 @@ make
 make install
 mv -v /etc/bash_completion.d/grub /usr/share/bash-completion/completions
 
-cd ..
 #+end_src
 
 
 ** gzip 
+#+INCLUDE: "install_final_gzip.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=gzip
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2539,12 +1943,13 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 ** iproute
+#+INCLUDE: "install_final_iproute.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=iproute
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2559,12 +1964,13 @@ make SBINDIR=/usr/sbin install
 mkdir -pv /usr/share/doc/iproute2-6.10.0
 cp -v COPYING README* /usr/share/doc/iproute2-6.10.0
 
-cd ..
 #+end_src
 
 
 ** kbd
+#+INCLUDE: "install_final_kbd.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=kbd
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2580,13 +1986,14 @@ make install
 #FIXME
 cp -R -v docs/doc -T /usr/share/doc/kbd-2.6.4
 
-cd ..
 #+end_src
 
 
 ** libpipeline
+#+INCLUDE: "install_final_libpipeline.sh" src shell 
 #+begin_src bash
-LFS_TARGET=
+cd $LFS/sources
+LFS_TARGET=libpipeline
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
 
@@ -2595,12 +2002,13 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 ** make
+#+INCLUDE: "install_final_make.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=make
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2611,12 +2019,13 @@ chown -R tester .
 su tester -c "PATH=$PATH make check"
 make install
 
-cd ..
 #+end_src
 
 
 ** patch
+#+INCLUDE: "install_final_patch.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=patch
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2626,12 +2035,13 @@ make
 make check
 make install
 
-cd ..
 #+end_src
 
 
 ** tar 
+#+INCLUDE: "install_final_tar.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=tar
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2644,12 +2054,13 @@ make check
 make install
 make -C doc install-html docdir=/usr/share/doc/tar-1.35
 
-cd ..
 #+end_src
 
 
 ** texinfo
+#+INCLUDE: "install_final_texinfo.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=texinfo
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2667,12 +2078,13 @@ pushd /usr/share/info
     done
 popd
 
-cd ..
 #+end_src
 
 
 ** vim
+#+INCLUDE: "install_final_vim.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=vim
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2718,7 +2130,9 @@ cd ..
 
 
 ** MarkupSafe
+#+INCLUDE: "install_final_markup-safe.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=MarkupSafe
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2726,12 +2140,13 @@ cd $LFS_TARGET*/
 pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
 pip3 install --no-index --no-user --find-links dist Markupsafe
 
-cd ..
 #+end_src
 
 
 ** jinja
+#+INCLUDE: "install_final_jinja.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=jinja
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2739,12 +2154,13 @@ cd $LFS_TARGET*/
 pip3 wheel -w dist --no-cache-dir --no-build-isolation --no-deps $PWD
 pip3 install --no-index --no-user --find-links dist Jinja2
 
-cd ..
 #+end_src
 
 
 ** udev
+#+INCLUDE: "install_final_udev.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=systemd
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2806,7 +2222,9 @@ cd ../../
 
 
 ** procps-ng
+#+INCLUDE: "install_final_procps-ng.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=procps-ng
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2821,12 +2239,13 @@ chown -R tester .
 su tester -c "PATH=$PATH make check"
 make install
 
-cd ..
 #+end_src
 
 
 ** util-linux
+#+INCLUDE: "install_final_util-linux.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=util-linux
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2859,12 +2278,13 @@ su tester -c "make -k check"
 
 make install
 
-cd ..
 #+end_src
 
 
 ** e2fsprogs
+#+INCLUDE: "install_final_e2fsprogs.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=e2fsprogs
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2898,12 +2318,13 @@ install-info --dir-file=/usr/share/info/dir /usr/share/info/com_err.info
 # configuring
 sed 's/metadata_csum_seed,//' -i /etc/mke2fs.conf
 
-cd ..
 #+end_src
 
 
 ** sysklogd
+#+INCLUDE: "install_final_sysklogd.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=sysklogd
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2932,14 +2353,15 @@ secure_mode 2
 # End /etc/syslog.conf
 EOF
 
-cd ..
 #+end_src
 
 
 
 
 ** sysvinit
+#+INCLUDE: "install_final_sysvinit.sh" src shell 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=sysvinit
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -2949,7 +2371,6 @@ make
 make install
 
 
-cd ..
 #+end_src
 
 ** stripping skiped FIXME
@@ -2958,13 +2379,13 @@ cd ..
 * System Configuration
 ** lfs-bootscripts 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=lfs-bootscripts
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
 
 make install
 
-cd ..
 #+end_src
 
 
@@ -3268,6 +2689,7 @@ EOF
 
 ** linux 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=linux
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
@@ -3285,7 +2707,6 @@ cp -iv System.map /boot/System.map-6.10.5
 cp -iv .config /boot/config-6.10.5
 cp -r Documentation -T /usr/share/doc/linux-6.10.5
 
-cd ..
 #+end_src
 
 
@@ -3352,11 +2773,11 @@ readelf -l <name of binary> | grep interpreter
 
 ** 
 #+begin_src bash
+cd $LFS/sources
 LFS_TARGET=
 tar -xf $LFS_TARGET*tar*
 cd $LFS_TARGET*/
 
-cd ..
 #+end_src
 
 
