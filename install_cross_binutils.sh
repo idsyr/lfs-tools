@@ -8,7 +8,7 @@
 source $(dirname "$0")/common_funcs.sh
 
 LFS_TARGET=binutils
-select_lfs_taget
+select_lfs_target
 
 mkdir -p build && cd build
 
