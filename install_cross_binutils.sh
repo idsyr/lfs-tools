@@ -1,28 +1,31 @@
-cd $LFS/sources
+#!/bin/sh 
+
+# binutils contains:
+#	linker
+#	assembler
+#	other tools for handling objects files
+
+source $(dirname "$0")/common_funcs.sh
+
 LFS_TARGET=binutils
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
+select_lfs_taget
 
-mkdir build
-cd build
+mkdir -p build && cd build
 
-../configure \
-# install in tools dir
---prefix=$LFS/tools \
-# look the target system libs in $LFS
---with-sysroot=$LFS \
-# adjust binutil's build system for building cross linker
---target=$LFS_TGT \
-# disable internationalization as i18n is not needed for temp tools
---disable-nls \
-# disable profiler
---enable-gprofng=no \
-# prevent the build from stopping on warnings
---disable-werror \
-# runpath instead of rpath
---enable-new-dtags \
-# only one hash table for shared libs
---enable-default-hash-style=gnu
+config_args=(
+	--prefix=$LFS/tools             # prepare to install in =<dir>
+	--with-sysroot=$LFS             # tell the build system to look libs in =<dir>
+	--target=$LFS_TGT               # adjust binutil's build system for building cross linker
+	--disable-nls                   # disable internationalization as i18n is not needed for temp tools
+	--enable-gprofng=no             # disable build gprofng which          is not needed for temp tools
+	--disable-werror                # prevents the build from stopping if warnings
+	--enable-new-dtags              # runpath instead of rpath
+	--enable-default-hash-style=gnu # only GNU-style hash table for shared libs
+)
 
+../configure "${config_args}"
 make
 make install
+
+
+ 
