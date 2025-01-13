@@ -1,7 +1,7 @@
-#!/bin/sh 
+#!/bin/bash 
 
-groupadd lfs
-useradd -s /bin/bash -g lfs -m -k /dev/null lfs
+sudo groupadd lfs
+sudo useradd -s /bin/bash -g lfs -m -k /dev/null lfs
 
 # -s /bin/bash - this makes bash the default for user lfs
 # -g lfs - adds user lfs to group lfs 
@@ -11,14 +11,27 @@ useradd -s /bin/bash -g lfs -m -k /dev/null lfs
 
 
 # for switch to lfs from non-root user (required pswd):
-passwd lfs 
+echo 0000 | sudo passwd lfs --stdin 
 
 # Grant lfs full access to all the directories under $LFS by making lfs the owner:
-chown -v lfs $LFS/{usr{,/*},lib,var,etc,bin,sbin,tools}
+sudo -E chown -v lfs $LFS/{usr{,/*},lib,var,etc,bin,sbin,tools}
 case $(uname -m) in
-    x86_64) chown -v lfs $LFS/lib64 ;;
+    x86_64)
+		sudo -E chown -v lfs $LFS/lib64 
+	;;
 esac
 
+sudo cp -v setting_up_environment.sh /home/lfs/
+
+sudo cp -v common_funcs.sh /home/lfs/
+sudo cp -v install_cross_binutils.sh /home/lfs/
+
+
 # Start the shell as a login shell with an environment similar to a real login:
-su - lfs 
+sudo su - lfs
+
+
+
+
+
 

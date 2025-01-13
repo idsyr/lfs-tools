@@ -10,9 +10,9 @@
 fdisk /dev/sdb
     g w
     n t w
-# EFI system partition 512M
+# EFI system partition 200M
 # Linux swap           4G
-# Linux x86-64 root    32G
+# Linux x86-64 root    30G
 #+end_src
 
 
@@ -29,7 +29,7 @@ lsblk -f
 
 ** Setting The $LFS Variable
 #+begin_src bash
-echo "LFS=/mnt/lfs" >> ~/.bashrc
+echo "export LFS=/mnt/lfs" >> ~/.bashrc
 bash
 #+end_src
 

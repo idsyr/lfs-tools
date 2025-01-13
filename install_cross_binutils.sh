@@ -1,9 +1,9 @@
 #!/bin/bash 
 
 # binutils contains:
-#	linker
-#	assembler
-#	other tools for handling objects files
+# - linker
+# - assembler
+# - other tools for handling objects files
 
 source $(dirname "$0")/common_funcs.sh
 
