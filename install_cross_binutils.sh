@@ -1,4 +1,4 @@
-#!/bin/sh 
+#!/bin/bash 
 
 # binutils contains:
 #	linker
@@ -23,7 +23,7 @@ config_args=(
 	--enable-default-hash-style=gnu # only GNU-style hash table for shared libs
 )
 
-../configure "${config_args}"
+../configure ${config_args[@]}
 make
 make install
 
