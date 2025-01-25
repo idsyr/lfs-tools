@@ -1,0 +1,16 @@
+#+title: how to use
+#+author: idsyr
+
+* usage
+** From lfs.org
+- create new partitions and file systems
+- set $LFS variable
+- mount $LFS
+** Scripts  
+#+begin_src bash
+    # logged in as <default_user>
+./prepare_playground.sh
+    # logged in as <lfs_user>: 
+./setting_up_environment.sh
+./install_cross.sh
+#+end_src

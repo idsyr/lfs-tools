@@ -1,24 +1,27 @@
-#!/bin/sh 
-cd $LFS/sources
+#!/bin/bash
+source $(dirname "$0")/common_funcs.sh
+
 LFS_TARGET=gcc
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
+select_lfs_build_target gcc
 
-mkdir build
-cd build
+mkdir -p build && cd build
 
-../configure \
---prefix=$LFS/tools \
---with-sysroot=$LFS \
---target=$LFS_TGT \
---disable-nls \
---enable-gprofng=no \
---disable-werror \
---enable-new-dtags \
---enable-default-hash-style=gnu
+config_args=(
+	--host=$LFS_TGT 
+	--build=$(../config.guess) 
+	--prefix=/usr 
+	--disable-multilib 
+	--disable-nls 
+	--disable-libstdcxx-pch 
+	--with-gxx-include-dir=/tools/$LFS_TGT/include/c++/14.2.0
+)
 
-make
-make DESTDIR=$LFS isntall
+../libstdc++-v3/configure ${config_args[@]}
+
+make -s
+make -s DESTDIR=$LFS install
+
+# libtool archieve files harmful for cross-compilation
 rm -v $LFS/usr/lib/lib{stdc++{,exp,fs},supc++}.la
 
 

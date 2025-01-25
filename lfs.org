@@ -51,6 +51,7 @@ mount -v -t ext4 /dev/sdb3 $LFS
 ** Creating a Limited Directory Layout in the LFS Filesystem
 #+INCLUDE: "create_directory_layout.sh" src shell
 ** Adding the LFS User
+- after this point files in default user is unaccessible
 #+INCLUDE: "add_lfs_user.sh" src shell
 ** Setting Up the Environment
 - while logged as _lfs_
@@ -69,7 +70,7 @@ mount -v -t ext4 /dev/sdb3 $LFS
 #+INCLUDE: "install_cross_glibc.sh" src shell
 ** libstd++
 #+INCLUDE: "install_cross_libstd++.sh" src shell
-
+<+++++++++++++++++++++++++++++___APPROVED___++++++++
 
 * Cross Compiling Temporary Tools
 ** M4

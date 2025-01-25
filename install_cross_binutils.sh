@@ -1,15 +1,12 @@
 #!/bin/bash 
+source $(dirname "$0")/common_funcs.sh
 
 # binutils contains:
 # - linker
 # - assembler
 # - other tools for handling objects files
 
-source $(dirname "$0")/common_funcs.sh
-
-LFS_TARGET=binutils
-select_lfs_target
-
+select_lfs_build_target binutils
 mkdir -p build && cd build
 
 config_args=(
@@ -24,8 +21,8 @@ config_args=(
 )
 
 ../configure ${config_args[@]}
-make
-make install
+make -s
+make -s install
 
 
  
