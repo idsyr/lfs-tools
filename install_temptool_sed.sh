@@ -1,9 +1,8 @@
-#!/bin/sh
-
-cd $LFS/sources
+#!/bin/bash
+source $(dirname "$0")/common_funcs.sh
 LFS_TARGET=sed
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
+
+select_lfs_build_target $LFS_TARGET
 
 ./configure \
 --prefix=/usr \

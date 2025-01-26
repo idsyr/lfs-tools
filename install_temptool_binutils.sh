@@ -1,14 +1,12 @@
-#!/bin/sh
-
-cd $LFS/sources
+#!/bin/bash
+source $(dirname "$0")/common_funcs.sh
 LFS_TARGET=binutils
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
+
+select_lfs_build_target $LFS_TARGET
 
 sed '6009s/$add_dir//' -i ltmain.sh
 
-mkdir build
-cd build
+mkdir -p build && cd build
 
 ../configure \
 --prefix=/usr \
@@ -22,9 +20,8 @@ cd build
 --enable-new-dtags \
 --enable-default-hash-style=gnu
 
-make
-make DESTDIR=$LFS install
+make -s
+make -s DESTDIR=$LFS install
 rm -v $LFS/usr/lib/lib{bfd,ctf,ctf-nobfd,opcodes,sframe}.{a,la}
 
-cd ..
 

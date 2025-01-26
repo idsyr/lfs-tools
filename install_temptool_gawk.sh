@@ -1,9 +1,8 @@
-#!/bin/sh
-
-cd $LFS/sources
+#!/bin/bash
+source $(dirname "$0")/common_funcs.sh
 LFS_TARGET=gawk
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
+
+select_lfs_build_target $LFS_TARGET
 
 sed -i 's/extras//' Makefile.in
 
@@ -12,7 +11,7 @@ sed -i 's/extras//' Makefile.in
 --host=$LFS_TGT \
 --build=$(build-aux/config.guess)
 
-make
-make DESTDIR=$LFS install
+make -s
+make -s DESTDIR=$LFS install
 
 

@@ -1,7 +1,6 @@
 #+title: how to use
 #+author: idsyr
 
-* usage
 ** From lfs.org
 - create new partitions and file systems
 - set $LFS variable
@@ -13,4 +12,9 @@
     # logged in as <lfs_user>: 
 ./setting_up_environment.sh
 ./install_cross.sh
+exit
+    # logged in as <default_user>
+./prepare_playground.sh
+    # logged in as <lfs_user>:
+./install_temptool.sh 
 #+end_src

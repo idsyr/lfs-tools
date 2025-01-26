@@ -1,9 +1,8 @@
-#!/bin/sh 
-
-cd $LFS/sources
+#!/bin/bash 
+source $(dirname "$0")/common_funcs.sh
 LFS_TARGET=bash
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
+
+select_lfs_build_target $LFS_TARGET
 
 ./configure \
 --prefix=/usr \
@@ -12,8 +11,8 @@ cd $LFS_TARGET*/
 --without-bash-malloc \
 bash_cv_strtold_broken=no
 
-make
-make DESTDIR=$LFS install
+make -s
+make -s DESTDIR=$LFS install
 ln -sv bash $LFS/bin/sh
 
 

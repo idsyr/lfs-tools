@@ -1,21 +1,12 @@
-#!/bin/sh
-
-cd $LFS/sources
-LFS_TARGET=mpfr
-tar -xf $LFS_TARGET*tar*
-mv $LFS_TARGET*/ $LFS_TARGET/
-
-LFS_TARGET=gmp
-tar -xf $LFS_TARGET*tar*
-mv $LFS_TARGET*/ $LFS_TARGET/
-
-LFS_TARGET=mpc
-tar -xf $LFS_TARGET*tar*
-mv $LFS_TARGET*/ $LFS_TARGET/
-
+#!/bin/bash 
+source $(dirname "$0")/common_funcs.sh
 LFS_TARGET=gcc
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
+
+select_lfs_build_target ${LFS_TARGET}
+ 
+tar -xf ../mpfr*tar* && mv mpfr*/ mpfr/ # Unpack each package into the GCC source directory 
+tar -xf ../gmp*tar*  && mv gmp*/  gmp/  # and rename the resulting directories so
+tar -xf ../mpc*tar*  && mv mpc*/  mpc/  # the GCC build procedures will automatically use them
 
 case $(uname -m) in
     x86_64)
@@ -27,8 +18,7 @@ esac
 sed '/thread_header =/s/@.*@/gthr-posix.h/' \
     -i libgcc/Makefile.in libstdc++-v3/include/Makefile.in
 
-mkdir build
-cd build
+mkdir -p build && cd build
 
 ../configure \
 --build=$(../config.guess) \
@@ -49,9 +39,7 @@ LDFLAGS_FOR_TARGET=-L$PWD/$LFS_TGT/libgcc \
 --disable-libvtv \
 --enable-languages=c,c++ \
 
-make
-make DESTDIR=$LFS install
+make -s
+make -s DESTDIR=$LFS install
 ln -sv gcc $LFS/usr/bin/cc
-
-cd ..
 

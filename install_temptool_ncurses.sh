@@ -1,9 +1,7 @@
-#!/bin/sh 
+#!/bin/bash 
+source $(dirname "$0")/common_funcs.sh
 
-cd $LFS/sources
-LFS_TARGET=ncurses
-tar -xf $LFS_TARGET*tar*
-cd $LFS_TARGET*/
+select_lfs_build_target ncurses
 
 mkdir build
 pushd build
@@ -12,23 +10,27 @@ pushd build
     make -C progs tic
 popd
 
-./configure \
---prefix=/usr \
---host=$LFS_TGT \
---build=$(./config.guess) \
---mandir=/usr/share/man \
---with-manpage-format=normal \
---with-shared \
---without-normal \
---with-cxx-shared \
---without-debug \
---without-ada \
---disable-stripping
+config_args=(
+	--prefix=/usr 
+	--host=$LFS_TGT 
+	--build=$(./config.guess) 
+	--mandir=/usr/share/man 
+	--with-manpage-format=normal 
+	--with-shared 
+	--without-normal              # no static c libs 
+	--with-cxx-shared             # no static c++ libs, shared
+	--without-debug 
+	--without-ada 
+	--disable-stripping           # prevents using strip from host
+)
 
-make
-make DESTDIR=$LFS TIC_PATH=$(pwd)/build/progs/tic install
-ln -sv libncursesw.so $LFS/usr/lib/libncurses.so
+./configure ${config_args[@]}
+
+
+make -s
+make -s DESTDIR=$LFS TIC_PATH=$(pwd)/build/progs/tic install
+ln -sv libncursesw.so $LFS/usr/lib/libncurses.so   # used as a replacement
 sed -e 's/^#if.*XOPEN.*$/#if 1/' \
-    -i $LFS/usr/include/curses.h
+    -i $LFS/usr/include/curses.h                   # bcse libcursesw 
 
 
